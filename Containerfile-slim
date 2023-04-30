@@ -1,0 +1,36 @@
+# https://github.com/awesome-containers/static-bash
+ARG STATIC_BASH_VERSION=5.2.15
+ARG STATIC_BASH_IMAGE=ghcr.io/awesome-containers/static-bash
+
+# https://github.com/awesome-containers/static-gnupg
+ARG STATIC_GNUPG_VERSION=9.3
+ARG STATIC_GNUPG_IMAGE=ghcr.io/awesome-containers/static-gnupg
+
+# https://github.com/awesome-containers/alpine-build-essential
+ARG BUILD_ESSENTIAL_VERSION=3.17
+ARG BUILD_ESSENTIAL_IMAGE=ghcr.io/awesome-containers/alpine-build-essential
+
+
+FROM $STATIC_BASH_IMAGE:$STATIC_BASH_VERSION-slim AS static-bash
+FROM $STATIC_GNUPG_IMAGE:$STATIC_GNUPG_VERSION AS static-gnupg
+FROM $BUILD_ESSENTIAL_IMAGE:$BUILD_ESSENTIAL_VERSION AS build
+
+WORKDIR /src/gnupg
+COPY --from=static-gnupg /bin/ ./
+
+# hadolint ignore=DL4006
+RUN set -xeu; \
+    rm -f bash; \
+    for bin in ./*; do \
+        file "$bin" -b --mime-type | grep -qw 'application/x-executable' || \
+            continue; \
+        ! ldd "$bin" && :; \
+        upx --no-progress --no-color "$bin"; \
+        upx -t --no-progress --no-color "$bin"; \
+    done; \
+    chmod -cR 755 ./; \
+    chown -cR 0:0 ./
+
+# slim static gnupg image
+FROM static-bash
+COPY --from=build /src/gnupg/ /bin/
